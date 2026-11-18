@@ -1,72 +1,74 @@
 # Camera-Pi
 
-Ein Knopfdruck nimmt ein Foto auf. Wenig später erscheint eine kurze Beschreibung auf dem OLED-Display des Raspberry Pi.
+Press a button to take a photo. A short description then appears on the Raspberry Pi's OLED display.
 
-Auf dem Pi laufen Kamera, Taster und Anzeige. Ein Python-Dienst auf Ubuntu nimmt das Bild entgegen und reicht es an oMLX auf einem Mac weiter. Das Modell erhält die Aufgabe, das Bild auf Deutsch in höchstens zwei kurzen Sätzen zu beschreiben und Unsicherheiten ausdrücklich zu nennen.
+The Pi handles the camera, button, and display. A Python service on Ubuntu receives the image and forwards it to oMLX on a Mac. The model is asked to describe the image in German in no more than two short sentences and to mention anything it cannot identify clearly.
 
-## Aufbau
+## How it works
 
 ```mermaid
 flowchart LR
-    Pi[Camera-Pi mit Taster und OLED] -->|JPEG über Tailscale, Port 8090| Ubuntu[Bilddienst auf Ubuntu]
-    Ubuntu -->|Port 8000 über SSH-Tunnel| Mac[oMLX auf dem Mac]
-    Mac -->|Bildbeschreibung| Ubuntu
-    Ubuntu -->|Text für das Display| Pi
+    Pi[Camera-Pi with button and OLED] -->|JPEG over Tailscale, port 8090| Ubuntu[Image service on Ubuntu]
+    Ubuntu -->|Port 8000 through SSH tunnel| Mac[oMLX on Mac]
+    Mac -->|Image description| Ubuntu
+    Ubuntu -->|Text for the display| Pi
 ```
 
-Der Pi kann im WLAN oder an einem Handy-Hotspot hängen. Pi und Ubuntu brauchen eine funktionierende Tailscale-Verbindung. Der Mac muss Ubuntu per SSH erreichen können und während der Analyse mit laufendem oMLX und SSH-Tunnel verfügbar bleiben.
+The Pi can use Wi-Fi or a phone hotspot. Both the Pi and Ubuntu need a working Tailscale connection. The Mac must be able to reach Ubuntu over SSH and stay available with oMLX and the SSH tunnel running during image analysis.
 
-### Dateien
+### Files
 
-| Datei | Aufgabe |
+| File | Purpose |
 | --- | --- |
-| `camera_button.py` | Liest den Taster, nimmt ein Foto auf, sendet es an Ubuntu und zeigt die Antwort an. |
-| `camera_bridge.py` | Prüft den Zugriffsschlüssel, nimmt das Bild entgegen und fragt die oMLX-API ab. |
-| `kamera.service` | Startet das Pi-Programm als systemd-Dienst. |
+| `camera_button.py` | Reads the button, takes a photo, sends it to Ubuntu, and displays the response. |
+| `camera_bridge.py` | Checks the access token, receives the image, and calls the oMLX API. |
+| `kamera.service` | Runs the Pi application as a systemd service. |
+| `camera-pi/` | Contains separate Python files and service templates for the Pi and Ubuntu. |
 
 ## Hardware
 
-Der Code ist für einen Raspberry Pi Zero 2 W mit einer OV5647-Kamera, einem Taster und einem SSD1306-I²C-OLED mit 128 × 32 Pixeln eingerichtet.
+The code is configured for a Raspberry Pi Zero 2 W with an OV5647 camera, a push button, and a 128 × 32 pixel SSD1306 I²C OLED display.
 
-| Bauteil | Anschluss am Pi |
+| Component | Pi connection |
 | --- | --- |
-| Kamera | CSI-Kameraanschluss mit passendem Flachbandkabel |
-| Taster | Zwischen GPIO17, physischer Pin 11, und GND, etwa Pin 9 |
-| OLED SDA | GPIO2, physischer Pin 3 |
-| OLED SCL | GPIO3, physischer Pin 5 |
-| OLED GND | GND, etwa physischer Pin 6 |
-| OLED VCC | 3,3 V, physischer Pin 1, bei einem dafür geeigneten Modul |
+| Camera | CSI camera connector with a suitable ribbon cable |
+| Button | Between GPIO17, physical pin 11, and GND, such as pin 9 |
+| OLED SDA | GPIO2, physical pin 3 |
+| OLED SCL | GPIO3, physical pin 5 |
+| OLED GND | GND, such as physical pin 6 |
+| OLED VCC | 3.3 V, physical pin 1, for a module rated for this voltage |
 
-Der Taster nutzt den internen Pull-up-Widerstand. Das Display wird auf I²C-Bus 1 unter Adresse `0x3c` angesprochen. Vor dem Verkabeln den Pi herunterfahren und vom Strom trennen.
+The button uses the internal pull-up resistor. The display uses I²C bus 1 at address `0x3c`. Shut down the Pi and disconnect its power before wiring anything.
 
-## Vorbereitung
+## Before you start
 
-Benötigt werden Raspberry Pi OS mit `rpicam-still`, Ubuntu mit Python 3 und SSH-Zugang sowie ein Mac mit einem laufenden oMLX-Server und einem geladenen Bildmodell. Die Einrichtung von oMLX selbst gehört zur jeweiligen Mac-Installation. Für dieses Projekt muss dessen OpenAI-kompatibler Endpunkt `/v1/chat/completions` Bilder als Data-URL verarbeiten können.
+You need Raspberry Pi OS with `rpicam-still`, Ubuntu with Python 3 and SSH access, and a Mac running oMLX with a loaded vision model. Set up oMLX for your Mac first. Its OpenAI-compatible `/v1/chat/completions` endpoint must accept images as data URLs.
 
-Die Beispiele verwenden den Linux-Benutzer `gujerl`, passend zur beiliegenden Service-Datei. Ersetze ihn und die Pfade `/home/gujerl`, wenn du einen anderen Benutzer verwendest. Ersetze außerdem `SERVER_TAILSCALE_IP` und `PI_TAILSCALE_IP` durch die jeweiligen Tailscale-Adressen. Du findest sie auf dem jeweiligen Gerät mit `tailscale ip -4`.
+Replace all placeholders before setup. `PI_USER` is the Linux username on the Pi, and `SERVER_USER` is the Linux username on Ubuntu. Adjust the home directory paths if they are outside `/home`. `SERVER_TAILSCALE_IP` and `PI_TAILSCALE_IP` are the devices' Tailscale addresses. Run `tailscale ip -4` on each device to find them. Comments in the project files explain the values you need to supply.
 
-Bei jedem Schritt steht, auf welchem Gerät du die Befehle eingibst. Wenn du per SSH arbeitest, erkennst du das Gerät am Prompt, etwa `gujerl@camera-pi` oder `gujerl@lambda`.
+Each step tells you which device to use. In an SSH session, check the username and hostname in the terminal prompt to confirm where you are working.
 
-## Pi einrichten
+## Set up the Pi
 
-Lege `camera_button.py` und `kamera.service` im Home-Verzeichnis des Pi ab. Installiere dort die Pakete.
+Place `camera_button.py` and `kamera.service` in the Pi user's home directory. Install the packages on the Pi.
 
 ```bash
 sudo apt update
 sudo apt install python3-venv python3-gpiozero python3-lgpio python3-pil rpicam-apps i2c-tools fonts-dejavu-core
 python3 -m venv --system-site-packages ~/kamera-env
 ~/kamera-env/bin/python -m pip install luma.oled
-sudo usermod -aG i2c,gpio gujerl
+# Replace PI_USER with your Linux username on the Pi.
+sudo usermod -aG i2c,gpio PI_USER
 sudo raspi-config
 ```
 
-Aktiviere in `raspi-config` unter den Schnittstellenoptionen I²C. Starte den Pi danach neu, damit auch die Gruppenmitgliedschaften wirksam werden.
+Enable I²C under the interface options in `raspi-config`. Restart the Pi to apply the changes and the group memberships.
 
 ```bash
 sudo reboot
 ```
 
-Nach der erneuten Anmeldung kannst du Display und Kamera prüfen.
+After logging in again, check the display and camera.
 
 ```bash
 i2cdetect -y 1
@@ -74,13 +76,13 @@ rpicam-still --list-cameras
 timeout -k 3s 15s rpicam-still --nopreview --timeout 2000 --width 1024 --height 768 --output /tmp/kamera-test.jpg
 ```
 
-Bei angeschlossenem Display sollte `i2cdetect` die Adresse `3c` zeigen. Eine erfolgreiche Aufnahme meldet `Still capture image received` und erzeugt `/tmp/kamera-test.jpg`.
+With the display connected, `i2cdetect` should show address `3c`. A successful capture reports `Still capture image received` and creates `/tmp/kamera-test.jpg`.
 
-Die virtuelle Python-Umgebung übernimmt mit `--system-site-packages` die über apt installierten GPIO-Pakete. Hinweise dazu stehen in der [GPIO-Zero-Dokumentation](https://gpiozero.readthedocs.io/en/stable/installing.html). Die Display-Bibliothek beschreibt ihre Anschlüsse in der [Luma.OLED-Dokumentation](https://luma-oled.readthedocs.io/en/stable/hardware.html).
+The `--system-site-packages` option makes the GPIO packages installed through apt available in the virtual environment. See the [GPIO Zero documentation](https://gpiozero.readthedocs.io/en/stable/installing.html). Display wiring is covered in the [Luma.OLED documentation](https://luma-oled.readthedocs.io/en/stable/hardware.html).
 
-## Ubuntu-Bilddienst starten
+## Start the Ubuntu image service
 
-Lege `camera_bridge.py` auf Ubuntu unter `/home/gujerl/camera_bridge.py` ab. Der Dienst verwendet ausschließlich die Python-Standardbibliothek.
+Place `camera_bridge.py` at `/home/SERVER_USER/camera_bridge.py` on Ubuntu. The service uses the Python standard library.
 
 ```bash
 sudo apt update
@@ -88,52 +90,55 @@ sudo apt install python3
 CAMERA_HOST=SERVER_TAILSCALE_IP python3 ~/camera_bridge.py
 ```
 
-Beim ersten Start erzeugt das Programm neben dem Skript die Datei `.camera-token` mit einem zufälligen Zugriffsschlüssel. Eine vorhandene Datei wird weiterverwendet. Lass das Terminal für den ersten Test geöffnet.
+On its first start, the program creates `.camera-token` beside the script and fills it with a random access token. It reuses an existing file. Leave the terminal open for the initial test.
 
-`CAMERA_HOST` muss zur Adresse passen, unter der der Pi den Dienst anspricht. Im aktuellen Code ist als Standard eine feste Heimnetzadresse hinterlegt. Setze die Variable deshalb beim Start ausdrücklich auf die Tailscale-IP von Ubuntu.
+`CAMERA_HOST` must match the address the Pi uses to reach the service. The code contains the placeholder `SERVER_TAILSCALE_IP`. Set the environment variable to Ubuntu's Tailscale IP when starting the service, or replace the placeholder in the code.
 
-### Zugriffsschlüssel auf den Pi kopieren
+### Copy the access token to the Pi
 
-Öffne eine zweite SSH-Sitzung zu Ubuntu. Kopiere von dort den Schlüssel auf den Pi.
+Open a second SSH session to Ubuntu. Copy the token from Ubuntu to the Pi.
 
 ```bash
-scp /home/gujerl/.camera-token gujerl@PI_TAILSCALE_IP:/home/gujerl/.camera-token
-ssh gujerl@PI_TAILSCALE_IP 'chmod 600 /home/gujerl/.camera-token'
+# Replace SERVER_USER and PI_USER with the Linux usernames on each device.
+# Replace PI_TAILSCALE_IP with the Pi's Tailscale IP.
+scp /home/SERVER_USER/.camera-token PI_USER@PI_TAILSCALE_IP:/home/PI_USER/.camera-token
+ssh PI_USER@PI_TAILSCALE_IP 'chmod 600 /home/PI_USER/.camera-token'
 ```
 
-Auf beiden Geräten muss derselbe Schlüssel liegen. Der Pi liest ihn aus dem Home-Verzeichnis seines ausführenden Benutzers. Die Bridge liest ihn aus dem Verzeichnis ihrer Python-Datei.
+Both devices need the same token. The Pi reads it from the home directory of the user running the application. The bridge reads it from the directory containing its Python file.
 
-## Mac und SSH-Tunnel
+## Mac and SSH tunnel
 
-Starte auf dem Mac oMLX mit einem bildfähigen Modell. Der Bridge-Code verwendet standardmäßig den Modellnamen `Qwen3.5-9B-4bit`. Dieser muss mit dem Namen übereinstimmen, den deine oMLX-API anbietet.
+Start oMLX on the Mac with a vision model. The bridge defaults to the model name `Qwen3.5-9B-4bit`. This must match the name exposed by your oMLX API.
 
-Prüfe im Mac-Terminal, ob die API auf dem angenommenen lokalen Port erreichbar ist.
+In the Mac terminal, check whether the API is reachable on the expected local port.
 
 ```bash
 curl --noproxy '*' --connect-timeout 5 --max-time 10 http://127.0.0.1:8000/v1/models
 ```
 
-Falls deine API einen Schlüssel verlangt, gib ihn für diesen Test über den Header `Authorization: Bearer DEIN_API_SCHLUESSEL` mit. Trage denselben Schlüssel später als `OMLX_API_KEY` bei der Bridge ein.
+If your API requires authentication, include the header `Authorization: Bearer YOUR_API_KEY` in this test. Set the same key as `OMLX_API_KEY` for the bridge.
 
-Öffne anschließend auf dem Mac den Tunnel zu Ubuntu.
+Then open the tunnel from the Mac to Ubuntu.
 
 ```bash
-ssh -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R 127.0.0.1:8000:127.0.0.1:8000 gujerl@SERVER_TAILSCALE_IP
+ssh -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R 127.0.0.1:8000:127.0.0.1:8000 SERVER_USER@SERVER_TAILSCALE_IP
 ```
 
-Lass dieses Terminal geöffnet. Der Tunnel leitet Verbindungen zu `127.0.0.1:8000` auf Ubuntu an `127.0.0.1:8000` auf dem Mac weiter. Dafür muss der SSH-Server auf Ubuntu Remote-Portweiterleitungen erlauben und der Port auf Ubuntu frei sein.
+Leave this terminal open. The tunnel forwards connections to `127.0.0.1:8000` on Ubuntu to `127.0.0.1:8000` on the Mac. Ubuntu's SSH server must allow remote port forwarding, and that port must be available on Ubuntu.
 
-Prüfe in einer separaten Ubuntu-Sitzung dieselbe URL mit `curl`. Eine Antwort auf `/v1/models` bestätigt die Erreichbarkeit der API. Die Verarbeitung eines Bildes prüfst du anschließend mit dem Kamerataster. Details zu den SSH-Optionen stehen im [OpenSSH-Handbuch](https://man.openbsd.org/ssh_config).
+In a separate Ubuntu session, check the same URL with `curl`. A response from `/v1/models` confirms that the API is reachable. Use the camera button afterward to test image processing. The SSH options are described in the [OpenSSH manual](https://man.openbsd.org/ssh_config).
 
-## Pi-Programm starten
+## Start the Pi application
 
-Öffne auf dem Pi `~/kamera.service` und passe die folgende Zeile an deine Ubuntu-Tailscale-IP an.
+On the Pi, open `~/kamera.service` and update the following line with Ubuntu's Tailscale IP.
 
 ```ini
+# Replace SERVER_TAILSCALE_IP with the Ubuntu server's Tailscale IP.
 Environment=CAMERA_BRIDGE_URL=http://SERVER_TAILSCALE_IP:8090/describe
 ```
 
-Prüfe auch `User`, `WorkingDirectory` und `ExecStart`, falls du einen anderen Benutzernamen verwendest. Installiere und aktiviere danach den Dienst auf dem Pi.
+Replace `PI_USER` in `User`, `WorkingDirectory`, and `ExecStart` with your Pi username and check the paths. Then install and enable the service on the Pi.
 
 ```bash
 sudo cp ~/kamera.service /etc/systemd/system/kamera.service
@@ -141,48 +146,50 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now kamera.service
 ```
 
-Status und laufende Meldungen kannst du so ansehen.
+Check the service status and follow its logs.
 
 ```bash
 systemctl status kamera.service --no-pager
 journalctl -u kamera.service -f
 ```
 
-Nach Änderungen an der installierten Service-Datei führe `sudo systemctl daemon-reload` und `sudo systemctl restart kamera.service` aus.
+After editing the installed service file, run `sudo systemctl daemon-reload` and `sudo systemctl restart kamera.service`.
 
-## Erster vollständiger Test
+## First end-to-end test
 
-Führe auf dem Pi diese Befehle mit der Tailscale-IP von Ubuntu aus.
+Run these commands on the Pi using Ubuntu's Tailscale IP.
 
 ```bash
 tailscale ping --c=3 SERVER_TAILSCALE_IP
 curl --noproxy '*' --connect-timeout 5 --max-time 8 http://SERVER_TAILSCALE_IP:8090/health
 ```
 
-Der Healthcheck sollte `Bilddienst erreichbar (oMLX nicht mitgeprueft).` zurückgeben. Er prüft die HTTP-Verbindung zur Bridge. Für eine vollständige Aufnahme müssen zusätzlich oMLX und der Tunnel laufen.
+The health check should return `Bilddienst erreichbar (oMLX nicht mitgeprueft).`, meaning the image service is reachable and oMLX has not been checked. It tests the HTTP connection to the bridge. For a complete photo request, oMLX and the tunnel must also be running.
 
-Auf dem Display erscheint `Kamera bereit`. Drücke den Taster einmal. Während der Aufnahme und Analyse zeigt das Display `Bitte warten`. Weitere Tastendrücke werden während der Verarbeitung verworfen.
+The display shows `Kamera bereit` (camera ready). Press the button once. During capture and analysis, it shows `Bitte warten` (please wait). Button presses during processing are discarded.
 
-Das Display zeigt die Antwort mit jeweils zwei Textzeilen pro Seite und blättert alle fünf Sekunden weiter. Drücke den Taster, um zum Startbildschirm zurückzukehren. Mit dem nächsten Druck nimmst du ein neues Foto auf. Nach einer Fehlermeldung funktioniert die Bedienung genauso.
+The display shows two lines of the response per page and advances every five seconds. Press the button to return to the start screen. Press it again to take another photo. The same controls apply after an error message.
 
-## Ubuntu-Bilddienst automatisch starten
+## Start the Ubuntu service automatically
 
-Für den dauerhaften Betrieb kannst du auf Ubuntu eine Datei `/etc/systemd/system/camera-bridge.service` mit folgendem Inhalt anlegen. Ersetze die IP und gegebenenfalls Benutzer und Pfade.
+For regular use, create `/etc/systemd/system/camera-bridge.service` on Ubuntu with the following contents. Replace the IP and username placeholders and check the paths. A separate template is also available at `camera-pi/camera-bridge.service`.
 
 ```ini
 [Unit]
-Description=Camera-Pi Bilddienst
+Description=Camera-Pi image service
 Wants=network-online.target tailscaled.service
 After=network-online.target tailscaled.service
 StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=gujerl
-WorkingDirectory=/home/gujerl
+# Replace SERVER_USER everywhere with your Linux username on Ubuntu.
+User=SERVER_USER
+WorkingDirectory=/home/SERVER_USER
 Environment=PYTHONUNBUFFERED=1
+# Replace SERVER_TAILSCALE_IP with the Ubuntu server's Tailscale IP.
 Environment=CAMERA_HOST=SERVER_TAILSCALE_IP
-ExecStart=/usr/bin/python3 /home/gujerl/camera_bridge.py
+ExecStart=/usr/bin/python3 /home/SERVER_USER/camera_bridge.py
 Restart=on-failure
 RestartSec=5
 
@@ -190,7 +197,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-Beende vorher einen noch manuell laufenden Bilddienst mit `Ctrl+C`, damit der Port frei wird. Aktiviere dann den Dienst auf Ubuntu.
+If the bridge is still running manually, stop it with `Ctrl+C` to free the port. Then enable the service on Ubuntu.
 
 ```bash
 sudo systemctl daemon-reload
@@ -198,55 +205,55 @@ sudo systemctl enable --now camera-bridge.service
 sudo journalctl -u camera-bridge.service -n 30 --no-pager
 ```
 
-Falls die Tailscale-Adresse beim Booten noch nicht verfügbar ist, versucht systemd den Start nach fünf Sekunden erneut. oMLX und der SSH-Tunnel auf dem Mac müssen zusätzlich gestartet werden. Die Service-Datei richtet deren Autostart nicht ein.
+If the Tailscale address is unavailable during boot, systemd retries the start after five seconds. Start oMLX and the SSH tunnel on the Mac separately.
 
-## Einstellungen
+## Configuration
 
-Die folgenden Variablen kannst du beim manuellen Start setzen oder als `Environment=` in die jeweilige Service-Datei eintragen.
+Set these variables when starting the program manually, or add them as `Environment=` entries in the relevant service file.
 
-| Programm | Variable | Vorgabe im Code |
+| Program | Variable | Default in the code |
 | --- | --- | --- |
-| Pi | `CAMERA_BRIDGE_URL` | Fest hinterlegte Tailscale-URL mit Port `8090` und Pfad `/describe` |
-| Bridge | `CAMERA_HOST` | `192.168.1.111` |
+| Pi | `CAMERA_BRIDGE_URL` | `http://SERVER_TAILSCALE_IP:8090/describe` (replace the placeholder) |
+| Bridge | `CAMERA_HOST` | `SERVER_TAILSCALE_IP` (replace the placeholder) |
 | Bridge | `CAMERA_PORT` | `8090` |
 | Bridge | `CAMERA_MODEL` | `Qwen3.5-9B-4bit` |
 | Bridge | `OMLX_URL` | `http://127.0.0.1:8000/v1/chat/completions` |
-| Bridge | `OMLX_API_KEY` | Optionaler Bearer-Schlüssel für die Modell-API |
+| Bridge | `OMLX_API_KEY` | Optional bearer token for the model API |
 
-Aufnahmegröße, Taster-Pin, Display-Adresse und Seitenwechsel stehen direkt in `camera_button.py`. Das Programm fotografiert mit 1024 × 768 Pixeln. Die Bridge akzeptiert JPEG und PNG bis 5 MiB und verarbeitet jeweils eine Anfrage. Die Aufnahme darf bis zu 45 Sekunden dauern, die Anfrage an oMLX bis zu 180 Sekunden. Auf dem Pi beträgt das HTTP-Timeout 200 Sekunden.
+Capture size, button pin, display address, and page timing are set directly in `camera_button.py`. Photos are taken at 1024 × 768 pixels. The bridge accepts JPEG and PNG images up to 5 MiB and processes one request at a time. Capture has a 45-second timeout, the oMLX request has a 180-second timeout, and the Pi's HTTP request has a 200-second timeout.
 
-## Hotspot verwenden
+## Use a hotspot
 
-Wenn der Pi NetworkManager verwendet und beide Verbindungen bereits gespeichert sind, kannst du die automatische Verbindung auf den Hotspot beschränken. Führe die Befehle auf dem Pi aus und ersetze `HOTSPOT` und `WLAN` durch die Profilnamen aus der ersten Ausgabe.
+If the Pi uses NetworkManager and both connections are already saved, you can limit automatic connections to the hotspot. Run these commands on the Pi, replacing `HOTSPOT` and `WIFI` with the profile names shown by the first command.
 
 ```bash
 nmcli connection show
 sudo nmcli connection modify "HOTSPOT" connection.autoconnect yes
-sudo nmcli connection modify "WLAN" connection.autoconnect no
+sudo nmcli connection modify "WIFI" connection.autoconnect no
 sudo nmcli connection up "HOTSPOT"
 ```
 
-Deaktiviere die automatische Verbindung bei weiteren gespeicherten WLAN-Profilen ebenfalls, falls der Pi diese erreichen könnte. Beim Wechsel kann eine SSH-Verbindung über die bisherige WLAN-IP abbrechen. Über Tailscale kannst du dich nach dem Verbindungsaufbau erneut anmelden. Ist der Hotspot nicht verfügbar, bleibt der Pi mit diesen Einstellungen ohne automatische WLAN-Ausweichverbindung.
+Disable automatic connections for any other saved Wi-Fi profiles the Pi could reach. Switching networks can disconnect an SSH session using the previous Wi-Fi address. Once the new connection is established, you can reconnect over Tailscale. With these settings, the Pi has no automatic Wi-Fi fallback when the hotspot is unavailable.
 
-Zum späteren Reaktivieren eines WLAN-Profils verwende `sudo nmcli connection modify "WLAN" connection.autoconnect yes`. Die Eigenschaften erklärt die [NetworkManager-Dokumentation](https://networkmanager.dev/docs/api/latest/nm-settings-nmcli.html).
+To re-enable automatic connections for a Wi-Fi profile, run `sudo nmcli connection modify "WIFI" connection.autoconnect yes`. See the [NetworkManager documentation](https://networkmanager.dev/docs/api/latest/nm-settings-nmcli.html) for these settings.
 
-## Fehler finden
+## Troubleshooting
 
-### Tailscale ist verbunden, aber die Bridge antwortet nicht
+### Tailscale is connected, but the bridge does not respond
 
-Prüfe vom Pi aus zuerst `tailscale ping` und danach `/health`, wie beim ersten Test. Eine Antwort über einen DERP-Relay kann für dieses Projekt funktionieren.
+From the Pi, run `tailscale ping` and then check `/health`, as in the initial test. A connection through a DERP relay can work for this project.
 
-Bei `Connection refused` prüfe auf Ubuntu, ob ein Prozess auf Port 8090 lauscht.
+For `Connection refused`, check on Ubuntu whether a process is listening on port 8090.
 
 ```bash
 sudo ss -ltnp 'sport = :8090'
 ```
 
-Eine leere Ausgabe bedeutet, dass aktuell kein TCP-Dienst auf diesem Port lauscht. Starte die Bridge und prüfe ihre Meldungen. Lauscht sie auf der Heimnetzadresse, starte sie mit `CAMERA_HOST` auf der Tailscale-IP. Bei einem Timeout prüfe zusätzlich Firewall und Tailscale-Zugriffsregeln für TCP-Port 8090.
+An empty result means no TCP service is listening on that port. Start the bridge and check its output. If it is bound to a home network address, restart it with `CAMERA_HOST` set to the Tailscale IP. For a timeout, also check the firewall and Tailscale access rules for TCP port 8090.
 
-### Kamera antwortet nicht
+### Camera does not respond
 
-Diese Meldung entsteht, wenn `rpicam-still` nach 45 Sekunden noch läuft. Stoppe auf dem Pi zunächst den Taster-Dienst, damit du die Kamera einzeln testen kannst.
+The display message `Kamera antwortet nicht.` appears when `rpicam-still` is still running after 45 seconds. On the Pi, stop the button service before testing the camera separately.
 
 ```bash
 sudo systemctl stop kamera.service
@@ -254,32 +261,34 @@ timeout -k 3s 15s rpicam-still --nopreview --timeout 2000 --width 1024 --height 
 tail -n 25 /tmp/kamera-test.log
 ```
 
-`Still capture image received` zeigt, dass die Kamera ein Bild geliefert hat. Bei wiederholten `Input/output error`- oder `Device timeout`-Meldungen fahre den Pi mit `sudo poweroff` herunter, trenne ihn nach dem Herunterfahren vom Strom und prüfe den Sitz des Flachbandkabels an beiden Enden. Wiederhole danach den Test. Falls der Fehler bleibt, helfen die Kernelmeldungen von `sudo journalctl -k -b --no-pager | tail -n 60` bei der weiteren Eingrenzung. Weitere Prüfungen beschreibt die [Raspberry-Pi-Kamera-Fehlersuche](https://github.com/raspberrypi/documentation/blob/master/documentation/asciidoc/accessories/camera/troubleshooting.adoc).
+`Still capture image received` means the camera delivered an image. For repeated `Input/output error` or `Device timeout` messages, shut down the Pi with `sudo poweroff`. Once it has shut down, disconnect power and check the ribbon cable at both ends. Then repeat the test. If the error persists, inspect the kernel messages with `sudo journalctl -k -b --no-pager | tail -n 60`. Further checks are described in the [Raspberry Pi camera troubleshooting guide](https://github.com/raspberrypi/documentation/blob/master/documentation/asciidoc/accessories/camera/troubleshooting.adoc).
 
-Nach einem erfolgreichen Test starte den Taster-Dienst wieder mit `sudo systemctl start kamera.service`.
+After a successful test, restart the button service with `sudo systemctl start kamera.service`.
 
-### Meldungen auf dem Display
+### Display messages
 
-| Meldung | Was du prüfen solltest |
+The application displays German messages. The table below explains what to check for each one.
+
+| Message | What to check |
 | --- | --- |
-| `Einrichtung fehlt` | Existiert im Home-Verzeichnis des Pi-Benutzers eine lesbare, gefüllte `.camera-token`? |
-| `rpicam-still fehlt.` | Ist das Paket `rpicam-apps` auf dem Pi installiert? |
-| `Kameraaufnahme fehlgeschlagen.` | Sieh die Kamera-Ausgabe im Journal des Pi-Dienstes an. |
-| `Zugriffsschluessel pruefen.` | Haben Pi und Bridge denselben Token? HTTP 401 zeigt einen fehlenden oder falschen Schlüssel. |
-| `Keine Verbindung. WLAN, Tailscale und Ubuntu pruefen.` | Prüfe Netzwerk, Tailscale, Bridge-Adresse und Port. |
-| `Mac, oMLX und Tunnel pruefen.` | Prüfe oMLX, den Tunnel, Modellname und gegebenenfalls API-Schlüssel. Die Bridge liefert HTTP 502. |
-| `KI braucht zu lange. Erneut versuchen.` | Die oMLX-Anfrage hat das Zeitlimit erreicht. Prüfe den Mac und die Modellauslastung. |
-| `Bilddienst beschaeftigt. Erneut druecken.` | Die Bridge bearbeitet bereits eine Anfrage. Warte, bevor du erneut auslöst. |
+| `Einrichtung fehlt` | Check for a readable, nonempty `.camera-token` in the Pi user's home directory. |
+| `rpicam-still fehlt.` | Check that `rpicam-apps` is installed on the Pi. |
+| `Kameraaufnahme fehlgeschlagen.` | Read the camera output in the Pi service journal. |
+| `Zugriffsschluessel pruefen.` | Check that the Pi and bridge use the same token. HTTP 401 indicates a missing or incorrect token. |
+| `Keine Verbindung. WLAN, Tailscale und Ubuntu pruefen.` | Check the network, Tailscale, bridge address, and port. |
+| `Mac, oMLX und Tunnel pruefen.` | Check oMLX, the tunnel, model name, and API key if required. The bridge returns HTTP 502. |
+| `KI braucht zu lange. Erneut versuchen.` | The oMLX request timed out. Check the Mac and model workload. |
+| `Bilddienst beschaeftigt. Erneut druecken.` | The bridge is already processing a request. Wait before trying again. |
 
-Die vollständige Antwort der Bridge steht im Pi-Journal. Prüfe dort die Details, wenn die kurze Displaymeldung nicht ausreicht.
+The Pi journal includes the full error response from the bridge. Check it for details when the short display message is insufficient.
 
-## Bilder und Zugriffsschlüssel
+## Images and access tokens
 
-Der Pi legt jede Aufnahme in einem temporären Verzeichnis ab, das nach Abschluss oder einem behandelten Fehler wieder entfernt wird. Die Bridge verarbeitet Bilder im Arbeitsspeicher. Der oMLX-Server erhält das Bild zur Analyse. Welche Protokolle oder Dateien oMLX selbst anlegt, hängt von dessen Konfiguration ab. Die manuellen Kameratests in dieser README speichern ihr Foto ausdrücklich unter `/tmp/kamera-test.jpg`.
+The Pi saves each photo in a temporary directory, which is removed after the request finishes or a handled error occurs. The bridge processes images in memory. The oMLX server receives the image for analysis. Any logs or files written by oMLX depend on its configuration. The manual camera tests in this README save their photo at `/tmp/kamera-test.jpg`.
 
-Die Bridge prüft bei Bildanfragen einen Bearer-Token. `/health` ist ohne Token erreichbar. HTTP-Verbindungen zur Bridge laufen im beschriebenen Aufbau über Tailscale, die Verbindung vom Ubuntu-Server zum Mac durch den SSH-Tunnel. Binde die Bridge an die vorgesehene Tailscale-Adresse und richte keine öffentliche Router-Portfreigabe dafür ein.
+The bridge checks a bearer token for image requests. `/health` is accessible without a token. In this setup, HTTP traffic to the bridge travels over Tailscale, and the connection from Ubuntu to the Mac goes through the SSH tunnel. Bind the bridge to the intended Tailscale address and keep it behind the router without public port forwarding.
 
-Halte `.camera-token` und API-Schlüssel aus dem GitHub-Repository heraus. Ergänze vor dem Veröffentlichen deine `.gitignore` beispielsweise um diese Einträge.
+Keep `.camera-token` and API keys out of the GitHub repository. Before publishing, add entries like these to your `.gitignore`.
 
 ```gitignore
 .camera-token
@@ -290,6 +299,6 @@ __pycache__/
 *.pyc
 ```
 
-## Stand der Anleitung
+## Verification status
 
-Die Anleitung wurde mit den drei enthaltenen Projektdateien abgeglichen. Bisher funktionieren die Tailscale-Verbindung zwischen Pi und Ubuntu und eine lokale Aufnahme mit der OV5647-Kamera. Für die vollständige Bildanalyse liegt noch kein bestätigter Test vor. Auch die Schritte für eine frische Installation und den Ubuntu-Autostart müssen auf den Geräten geprüft werden.
+This guide has been checked against the included code. The Python files and shell examples have passed syntax checks. A fresh installation covering image analysis and automatic startup has yet to be tested on the devices using this guide.
