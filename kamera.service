@@ -1,0 +1,20 @@
+[Unit]
+Description=Photo button with camera and OLED
+After=network.target tailscaled.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+# Replace PI_USER everywhere with the Linux username on the Pi.
+User=PI_USER
+SupplementaryGroups=i2c gpio
+WorkingDirectory=/home/PI_USER
+Environment=PYTHONUNBUFFERED=1
+# Replace SERVER_TAILSCALE_IP with the Ubuntu server's Tailscale IP.
+Environment=CAMERA_BRIDGE_URL=http://SERVER_TAILSCALE_IP:8090/describe
+ExecStart=/home/PI_USER/kamera-env/bin/python /home/PI_USER/camera_button.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

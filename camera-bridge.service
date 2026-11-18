@@ -1,0 +1,20 @@
+[Unit]
+Description=Camera-Pi image service
+Wants=network-online.target tailscaled.service
+After=network-online.target tailscaled.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+# Replace SERVER_USER everywhere with the Linux username on Ubuntu.
+User=SERVER_USER
+WorkingDirectory=/home/SERVER_USER
+Environment=PYTHONUNBUFFERED=1
+# Replace SERVER_TAILSCALE_IP with this Ubuntu server's Tailscale IP.
+Environment=CAMERA_HOST=SERVER_TAILSCALE_IP
+ExecStart=/usr/bin/python3 /home/SERVER_USER/camera_bridge.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
